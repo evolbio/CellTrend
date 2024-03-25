@@ -1,10 +1,10 @@
 using CellTrend
 
-v = CellTrend.rw(300);
+y,t = CellTrend.rw(300);
+v = CellTrend.ema_interp(y,t);
 r = 80:0.1:100
-plot([ema(v,0.2,t) for t in r],legend=:none)
-plot!([v(x,0) for x in r])
 
+du = ones(8);
 CellTrend.ode!(du, rand(8), rand(30), 1, 4, v)
 
 y = CellTrend.rw(300);
