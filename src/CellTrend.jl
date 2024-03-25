@@ -4,7 +4,6 @@ include("/Users/steve/sim/zzOtherLang/julia/modules/MMAColors.jl")
 using .MMAColors
 export ema, rw
 
-ema_steps(v, T; theta=0.2, saveat=0.1) = [ema(v,theta,t) for t in 0:saveat:T]
 # diff between future and curr values
 calc_y_diff(y, offset) = y[1+offset:end] - y[1:end-offset]
 calc_y_true(y_diff) = map(x -> ifelse(x==0.0, Float64(rand(0:1)),
@@ -46,32 +45,38 @@ function ode!(du, u, p, t, n, v)
 	du[n+1:2n] = p_a .* u_m .- p_d .* u_p		# protein level
 end
 
-# f is function f(t,p), where p is not used
-function ema(f, theta, t; start_t = 0)
-	ff(τ,p) = f(τ,p)*exp((τ-t)/theta)
-	prob = IntegralProblem(ff,start_t,t)
-	top = solve(prob, HCubatureJL(); reltol = 1e-3, abstol = 1e-3).u
-	gg(τ,p) = exp((τ-t)/theta)
-	prob = IntegralProblem(gg,start_t,t)
-	bottom = solve(prob, HCubatureJL(); reltol = 1e-3, abstol = 1e-3).u
-	return top/bottom
+# Use discrete saveat points for random walk, then discrete ema,
+# then linear interpolation of discrete ema to get continuous inputs
+# for ode.
+
+ema!(data, alpha) = ema(data, alpha; in_place = true)
+
+function ema(data, alpha; in_place = false)
+    y = in_place ? data : deepcopy(data)
+    n = length(y)
+    result = zeros(n)
+    result[1] = y[1]
+    for i = 2:n
+        y[i] = alpha * y[i] + (1 - alpha) * y[i-1]
+    end
+    return y
 end
 
 # random walk
-function rw(T; sigma = 0.2, dt = 0.01, norm_rng = true)
+function rw(T; sigma = 0.2, saveat = 0.1, alpha = 0.2, norm_rng = true)
     prob = SDEProblem((u, p, t) -> 0, (u, p, t) -> sigma, 0, (0, T))
-    sol = solve(prob, EM(), dt = dt)
-    return norm_rng ? normalize(sol) : (t,p) -> sol(t)
+    sol = solve(prob, EM(), dt = saveat / 10; saveat = saveat)
+    u = norm_rng ? normalize!(sol.u) : sol.u
+    return alpha == 1 ? u : ema!(u, alpha), sol.t
 end
 
-function normalize(sol; low = 0, high = 1)
-	mx = maximum(sol)
-	mn = minimum(sol)
-	return (t,p) -> ((high - low) / (mx - mn))*sol(t) + (low - mn) / (mx - mn)
+function normalize!(x; low = 0, high = 1)
+    x .= ((high - low) / (maximum(x) - minimum(x)) .* x)
+    x .= x .+ (low - minimum(x))
 end
 
 function plot_rw(T; theta=0.2, r=nothing)
-	v = CellTrend.rw(T);
+	y = rw(T);
 	if r === nothing
 		r = Int(floor(T/4)):0.1:Int(floor(T/3))
 	end
@@ -79,20 +84,37 @@ function plot_rw(T; theta=0.2, r=nothing)
 	plot!([ema(v,theta,t) for t in r], color=mma[2],w=2)
 end
 
-########################## Not used ##################################
-
-function normalize2(sol; low = 0, high = 1)
-	mx = maximum(sol)
-	mn = minimum(sol)
-	println(mx)
-	println(mn)
-	f = OptimizationFunction((t,p) -> sol(t))
-	prob = OptimizationProblem(f, [maximum(sol.t)/2], [maximum(sol.t)/2];
-			lcons=[0], ucons=[300])
-	mn = solve(prob, CMAEvolutionStrategyOpt(), maxiters=10000, abstol=1e-24)
-	println(mn.u)
-	return mn
-	#return (t,p) -> ((high - low) / (mx - mn))*sol(t) + (low - mn) / (mx - mn)
-end
-
+# # f is function f(t,p), where p is not used
+# function ema(f, theta, t; start_t = 0)
+# 	ff(τ,p) = f(τ,p)*exp((τ-t)/theta)
+# 	prob = IntegralProblem(ff,start_t,t)
+# 	top = solve(prob, HCubatureJL(); reltol = 1e-3, abstol = 1e-3).u
+# 	gg(τ,p) = exp((τ-t)/theta)
+# 	prob = IntegralProblem(gg,start_t,t)
+# 	bottom = solve(prob, HCubatureJL(); reltol = 1e-3, abstol = 1e-3).u
+# 	return top/bottom
+# end
+# 
+# # random walk
+# function rw(T; sigma = 0.2, dt = 0.01, norm_rng = true)
+#     prob = SDEProblem((u, p, t) -> 0, (u, p, t) -> sigma, 0, (0, T))
+#     sol = solve(prob, EM(), dt = dt)
+#     return norm_rng ? normalize(sol) : (t,p) -> sol(t)
+# end
+# 
+# function normalize(sol; low = 0, high = 1)
+# 	mx = maximum(sol)
+# 	mn = minimum(sol)
+# 	return (t,p) -> ((high - low) / (mx - mn))*sol(t) + (low - mn) / (mx - mn)
+# end
+# 
+# function plot_rw(T; theta=0.2, r=nothing)
+# 	v = CellTrend.rw(T);
+# 	if r === nothing
+# 		r = Int(floor(T/4)):0.1:Int(floor(T/3))
+# 	end
+# 	plot([v(x,0) for x in r],legend=:none, color=mma[1],w=2)
+# 	plot!([ema(v,theta,t) for t in r], color=mma[2],w=2)
+# end
+# 
 end # module CellTrend

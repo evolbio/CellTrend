@@ -7,4 +7,4 @@ plot!([v(x,0) for x in r])
 
 CellTrend.ode!(du, rand(8), rand(30), 1, 4, v)
 
-steps = CellTrend.ema_steps(v,T);
+y = CellTrend.rw(300);
