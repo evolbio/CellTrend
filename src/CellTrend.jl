@@ -1,6 +1,6 @@
 module CellTrend
 using DifferentialEquations, Optimization, LossFunctions, Statistics,
-		OptimizationOptimisers
+		OptimizationOptimisers, OptimizationOptimJL
 include("Data.jl")
 using .Data
 include("/Users/steve/sim/zzOtherLang/julia/modules/MMAColors.jl")
@@ -11,12 +11,22 @@ sigmoidc(x; epsilon=1e-5) = clamp(1 / (1 + exp(-x)), epsilon, 1-epsilon)
 
 function driver(T=300; maxiters=10)
 	n = 4
-	p = rand(32) .+ 0.1
+	p = driver_eq(10000)
+	p[32] = 1.0			# set so that u[8] = p[32], and guess is 0.5
 	optf = OptimizationFunction((p,x) -> loss(p,n,T),Optimization.AutoForwardDiff())
 	#optf = OptimizationFunction((p,x) -> loss(p,n,T))
-	prob = OptimizationProblem(optf,p,lb=0.1*ones(32),ub=10*ones(32))
+	prob = OptimizationProblem(optf,p,lb=1e-5*ones(32),ub=100*ones(32))
 	prob = OptimizationProblem(optf,p)
 	solve(prob, ADAM(0.05), maxiters=maxiters, callback=callback)
+end
+
+function driver_eq(maxiters=10)
+	n = 4
+	p = 10 * rand(32) .+ 0.1
+	optf = OptimizationFunction((p,x) -> loss_eq(p,n))
+	prob = OptimizationProblem(optf,p,lb=1e-5*ones(32),ub=100*ones(32))
+	prob = OptimizationProblem(optf,p)
+	solve(prob, NelderMead(), maxiters=maxiters,callback=callback)
 end
 
 # requires 30 parameters, length(p) == 30
@@ -44,7 +54,7 @@ function ode!(du, u, p, t, n, v)
 	
 	#a = [a1,a2,a3,a4].^k
 	
-	f = [a[i]/(b[i]+a[i]) for i in 1:n]
+	f = [a[i]/(β[i]+a[i]) for i in 1:n]
 	
 	du[1:n] = m_a .* f .- m_d .* u_m			# mRNA level
 	du[n+1:2n] = p_a .* u_m .- p_d .* u_p		# protein level
@@ -66,10 +76,18 @@ function loss(p, n, T; saveat=0.1, skip=0.1)
 	y_true = calc_y_true(y_diff)[1+skip:end]
 	s = @view sol[2*n,:][1+skip:end-1]
 	yp = sigmoidc.(p[31] .* (s .- p[32]))
-	return sum(CrossEntropyLoss(),yp,y_true), yp, y_true
+	return sum(CrossEntropyLoss(),yp,y_true), yp, y_true, sol
 end
 
-function callback(state, loss, yp, y_true)
+function loss_eq(p, n)
+	u0 = vcat(100*ones(n),1000*ones(n))
+	du = ones(2*n)
+	v = x -> 0.5
+	ode!(du,u0,p,0.0,n,v)
+	return sum(abs2.(du))
+end
+
+function callback(state, loss, yp, y_true, sol)
 	println("Loss = ", loss)
 	return false
 end

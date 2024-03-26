@@ -2,7 +2,7 @@
 
 julia_version = "1.10.2"
 manifest_format = "2.0"
-project_hash = "e0ac62189a1eb1253a9765b2d822c993409cd11f"
+project_hash = "7ff94743e10a603f267b84f490d3d75c3bfa3d40"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "016833eb52ba2d6bea9fcb50ca295980e728ee24"
@@ -493,6 +493,16 @@ git-tree-sha1 = "bdb1942cd4c45e3c678fd11569d5cccd80976237"
 uuid = "4e289a0a-7415-4d19-859d-a7e5c4648b56"
 version = "1.0.4"
 
+[[deps.Enzyme]]
+deps = ["CEnum", "EnzymeCore", "Enzyme_jll", "GPUCompiler", "LLVM", "Libdl", "LinearAlgebra", "ObjectFile", "Preferences", "Printf", "Random"]
+git-tree-sha1 = "3fb48f9c18de1993c477457265b85130756746ae"
+uuid = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+version = "0.11.20"
+weakdeps = ["SpecialFunctions"]
+
+    [deps.Enzyme.extensions]
+    EnzymeSpecialFunctionsExt = "SpecialFunctions"
+
 [[deps.EnzymeCore]]
 git-tree-sha1 = "59c44d8fbc651c0395d8a6eda64b05ce316f58b4"
 uuid = "f151be2c-9106-41f4-ab19-57ee4f262869"
@@ -501,6 +511,12 @@ weakdeps = ["Adapt"]
 
     [deps.EnzymeCore.extensions]
     AdaptExt = "Adapt"
+
+[[deps.Enzyme_jll]]
+deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
+git-tree-sha1 = "32d418c804279c60dd38ac7868126696f3205a4f"
+uuid = "7cc45869-7501-5eee-bdea-0790c847d4ef"
+version = "0.0.102+0"
 
 [[deps.EpollShim_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -680,6 +696,12 @@ deps = ["Adapt"]
 git-tree-sha1 = "ec632f177c0d990e64d955ccc1b8c04c485a0950"
 uuid = "46192b85-c4d5-4398-a991-12ede77f4527"
 version = "0.1.6"
+
+[[deps.GPUCompiler]]
+deps = ["ExprTools", "InteractiveUtils", "LLVM", "Libdl", "Logging", "Scratch", "TimerOutputs", "UUIDs"]
+git-tree-sha1 = "a846f297ce9d09ccba02ead0cae70690e072a119"
+uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
+version = "0.25.0"
 
 [[deps.GR]]
 deps = ["Artifacts", "Base64", "DelimitedFiles", "Downloads", "GR_jll", "HTTP", "JSON", "Libdl", "LinearAlgebra", "Pkg", "Preferences", "Printf", "Random", "Serialization", "Sockets", "TOML", "Tar", "Test", "UUIDs", "p7zip_jll"]
@@ -885,6 +907,24 @@ deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "bf36f528eec6634efc60d7ec062008f171071434"
 uuid = "88015f11-f218-50d7-93a8-a6af411a945d"
 version = "3.0.0+1"
+
+[[deps.LLVM]]
+deps = ["CEnum", "LLVMExtra_jll", "Libdl", "Preferences", "Printf", "Requires", "Unicode"]
+git-tree-sha1 = "ab01dde107f21aa76144d0771dccc08f152ccac7"
+uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
+version = "6.6.2"
+
+    [deps.LLVM.extensions]
+    BFloat16sExt = "BFloat16s"
+
+    [deps.LLVM.weakdeps]
+    BFloat16s = "ab4f0b2a-ad5b-11e8-123f-65d77653426b"
+
+[[deps.LLVMExtra_jll]]
+deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
+git-tree-sha1 = "88b916503aac4fb7f701bb625cd84ca5dd1677bc"
+uuid = "dad2f222-ce93-54a1-a47d-0025e8a3acab"
+version = "0.0.29+0"
 
 [[deps.LLVMOpenMP_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -1267,6 +1307,12 @@ version = "3.8.3"
     SpeedMapping = "f1835b91-879b-4a3f-a438-e4baacf14412"
     Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
     Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
+
+[[deps.ObjectFile]]
+deps = ["Reexport", "StructIO"]
+git-tree-sha1 = "195e0a19842f678dd3473ceafbe9d82dfacc583c"
+uuid = "d8793406-e978-5875-9003-1fc021f44a92"
+version = "0.4.1"
 
 [[deps.OffsetArrays]]
 git-tree-sha1 = "6a731f2b5c03157418a20c12195eb4b74c8f8621"
@@ -1962,6 +2008,12 @@ deps = ["PrecompileTools"]
 git-tree-sha1 = "a04cabe79c5f01f4d723cc6704070ada0b9d46d5"
 uuid = "892a3eda-7b42-436c-8928-eab12a02cf0e"
 version = "0.3.4"
+
+[[deps.StructIO]]
+deps = ["Test"]
+git-tree-sha1 = "010dc73c7146869c042b49adcdb6bf528c12e859"
+uuid = "53d494c1-5632-5724-8f4c-31dff12d585f"
+version = "0.3.0"
 
 [[deps.SuiteSparse]]
 deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
