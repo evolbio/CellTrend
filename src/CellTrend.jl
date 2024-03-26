@@ -1,5 +1,6 @@
 module CellTrend
-using DifferentialEquations, Optimization, OptimizationOptimJL, LossFunctions
+using DifferentialEquations, Optimization, LossFunctions, Statistics,
+		OptimizationOptimisers
 include("Data.jl")
 using .Data
 include("/Users/steve/sim/zzOtherLang/julia/modules/MMAColors.jl")
@@ -10,10 +11,12 @@ sigmoidc(x; epsilon=1e-5) = clamp(1 / (1 + exp(-x)), epsilon, 1-epsilon)
 
 function driver(T=300; maxiters=10)
 	n = 4
-	p = ones(30)
+	p = rand(32) .+ 0.1
 	optf = OptimizationFunction((p,x) -> loss(p,n,T),Optimization.AutoForwardDiff())
-	prob = OptimizationProblem(optf,p,lb=zeros(30),ub=5*ones(30))
-	solve(prob, SAMIN(), maxiters=maxiters)
+	#optf = OptimizationFunction((p,x) -> loss(p,n,T))
+	prob = OptimizationProblem(optf,p,lb=0.1*ones(32),ub=10*ones(32))
+	prob = OptimizationProblem(optf,p)
+	solve(prob, ADAM(0.05), maxiters=maxiters, callback=callback)
 end
 
 # requires 30 parameters, length(p) == 30
@@ -58,11 +61,22 @@ function loss(p, n, T; saveat=0.1, skip=0.1)
 	y,t = rw(T; saveat=saveat)
 	v = ema_interp(y,t)
 	prob = ODEProblem((du,u,p,t) -> ode!(du, u, p, t, n, v), u0, tspan, p)
-	sol = solve(prob, Tsit5(), saveat=saveat)
+	sol = solve(prob, Rodas4P(), saveat=saveat, maxiters=100000)
 	y_diff = calc_y_diff(y,1)
 	y_true = calc_y_true(y_diff)[1+skip:end]
-	yp = sigmoidc.(100.0 .* (sol[2*n,:][1+skip:end-1] .- 1))
-	return sum(CrossEntropyLoss(),yp,y_true), yp
+	s = @view sol[2*n,:][1+skip:end-1]
+	yp = sigmoidc.(p[31] .* (s .- p[32]))
+	return sum(CrossEntropyLoss(),yp,y_true), yp, y_true
+end
+
+function callback(state, loss, yp, y_true)
+	println("Loss = ", loss)
+	return false
+end
+
+function callback(state, loss)
+	println("Loss2 = ", loss)
+	return false
 end
 
 end # module CellTrend
