@@ -11,20 +11,19 @@ sigmoidc(x; epsilon=1e-5) = clamp(1 / (1 + exp(-x)), epsilon, 1-epsilon)
 
 function driver(T=300; maxiters=10)
 	n = 4
-	p = driver_eq(10000)
+	p = find_eq(10000)
 	p[32] = 1.0			# set so that u[8] = p[32], and guess is 0.5
 	optf = OptimizationFunction((p,x) -> loss(p,n,T),Optimization.AutoForwardDiff())
 	#optf = OptimizationFunction((p,x) -> loss(p,n,T))
 	prob = OptimizationProblem(optf,p,lb=1e-5*ones(32),ub=100*ones(32))
 	prob = OptimizationProblem(optf,p)
-	solve(prob, ADAM(0.05), maxiters=maxiters, callback=callback)
+	solve(prob, OptimizationOptimisers.Sophia(η=0.01), maxiters=maxiters, callback=callback)
 end
 
-function driver_eq(maxiters=10)
+function find_eq(maxiters=10)
 	n = 4
 	p = 10 * rand(32) .+ 0.1
 	optf = OptimizationFunction((p,x) -> loss_eq(p,n))
-	prob = OptimizationProblem(optf,p,lb=1e-5*ones(32),ub=100*ones(32))
 	prob = OptimizationProblem(optf,p)
 	solve(prob, NelderMead(), maxiters=maxiters,callback=callback)
 end
@@ -80,7 +79,8 @@ function loss(p, n, T; saveat=0.1, skip=0.1)
 end
 
 function loss_eq(p, n)
-	u0 = vcat(100*ones(n),1000*ones(n))
+	u0 = vcat(100*ones(n),1*ones(n))
+	#u0 = ones(2*n)
 	du = ones(2*n)
 	v = x -> 0.5
 	ode!(du,u0,p,0.0,n,v)
