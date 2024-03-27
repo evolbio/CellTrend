@@ -1,7 +1,7 @@
 module Data
 using DifferentialEquations, DataInterpolations, Plots
 export ema, ema!, rw, plot_rw, calc_y_diff, calc_y_true, prob_pred_next,
-	ema_interp
+	ema_interp, accuracy
 
 # Use discrete saveat points for random walk, then discrete ema,
 # then linear interpolation of discrete ema to get continuous inputs
@@ -11,6 +11,8 @@ export ema, ema!, rw, plot_rw, calc_y_diff, calc_y_true, prob_pred_next,
 calc_y_diff(y, offset) = y[1+offset:end] - y[1:end-offset]
 calc_y_true(y_diff) = map(x -> ifelse(x==0.0, Float64(rand(0:1)),
 										ifelse(x>0.0,1.0,0.0)), y_diff)
+matches(y_pred, y_true) = sum((y_pred .> 0.5) .== y_true)
+accuracy(y_pred, y_true) = matches(y_pred, y_true) / length(y_pred)
 ema!(data, alpha) = ema(data, alpha; in_place = true)
 ema_interp(y,t) = LinearInterpolation(y,t)
 
@@ -33,7 +35,7 @@ end
 # random walk
 function rw(T; sigma = 0.2, saveat = 0.1, alpha = 0.2, norm_rng = true)
     prob = SDEProblem((u, p, t) -> 0, (u, p, t) -> sigma, 0, (0, T))
-    sol = solve(prob, EM(), dt = saveat / 10; saveat = saveat)
+    sol = solve(prob, EM(), dt = 0.01; saveat = saveat)
     u = norm_rng ? normalize!(sol.u) : sol.u
     return alpha == 1 ? u : ema!(u, alpha), sol.t
 end

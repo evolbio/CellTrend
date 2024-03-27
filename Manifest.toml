@@ -2,7 +2,7 @@
 
 julia_version = "1.10.2"
 manifest_format = "2.0"
-project_hash = "a1254e143ccd78c9a4740e412469b723add7eda5"
+project_hash = "4366de3fd7324efb4df205f5bdad6642f858e81c"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "016833eb52ba2d6bea9fcb50ca295980e728ee24"
@@ -894,9 +894,9 @@ version = "3.0.2+0"
 
 [[deps.JumpProcesses]]
 deps = ["ArrayInterface", "DataStructures", "DiffEqBase", "DocStringExtensions", "FunctionWrappers", "Graphs", "LinearAlgebra", "Markdown", "PoissonRandom", "Random", "RandomNumbers", "RecursiveArrayTools", "Reexport", "SciMLBase", "StaticArrays", "SymbolicIndexingInterface", "UnPack"]
-git-tree-sha1 = "05649cf7112a2e579743c6618d7e139b1c35cf88"
+git-tree-sha1 = "ed08d89318be7d625613f3c435d1f6678fba4850"
 uuid = "ccbc3e58-028d-4f4c-8cd5-9ae44345cda5"
-version = "9.11.0"
+version = "9.11.1"
 weakdeps = ["FastBroadcast"]
 
     [deps.JumpProcesses.extensions]
@@ -1193,9 +1193,9 @@ version = "0.11.1"
 
 [[deps.Lux]]
 deps = ["ADTypes", "Adapt", "ArrayInterface", "ChainRulesCore", "ConcreteStructs", "ConstructionBase", "FastClosures", "Functors", "GPUArraysCore", "LinearAlgebra", "LuxCore", "LuxDeviceUtils", "LuxLib", "MacroTools", "Markdown", "PrecompileTools", "Random", "Reexport", "Setfield", "Statistics", "WeightInitializers"]
-git-tree-sha1 = "d2949a950adbd21ac9714f36bdfa69621fbf628f"
+git-tree-sha1 = "7943ac45d1e513f4dee216dbdbe549905361dbc3"
 uuid = "b2108857-7c20-44ae-9111-449ecde12c47"
-version = "0.5.29"
+version = "0.5.30"
 
     [deps.Lux.extensions]
     LuxChainRulesExt = "ChainRules"
