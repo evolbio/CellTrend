@@ -33,10 +33,10 @@ function ema(data, alpha; in_place = false)
 end
 
 # random walk
-function rw(T; sigma = 0.2, saveat = 0.1, alpha = 0.2, norm_rng = true)
+function rw(T; sigma = 0.2, saveat = 0.1, alpha = 0.2, norm_rng = true, low=0, high=1)
     prob = SDEProblem((u, p, t) -> 0, (u, p, t) -> sigma, 0, (0, T))
     sol = solve(prob, EM(), dt = 0.01; saveat = saveat)
-    u = norm_rng ? normalize!(sol.u) : sol.u
+    u = norm_rng ? normalize!(sol.u; low=low, high=high) : sol.u
     return alpha == 1 ? u : ema!(u, alpha), sol.t
 end
 

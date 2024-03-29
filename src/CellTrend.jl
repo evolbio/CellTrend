@@ -17,18 +17,18 @@ function driver_opt(T=30; maxiters=10)
 	global acc_ma = 0.5
 	global iter = 0
 	n = 4
-	saveat = 1.0
-	u0 = vcat(1e2*ones(n),1e3*ones(n))
+	saveat = 0.1
+	u0 = vcat(1e0*ones(n),1e0*ones(n))
 
 	tf, pp, st, re = make_activation()
-	nparam = 4*n + length(pp) + 2		# 2 is for location and scale of prediction
+	nparam = 4*n + length(pp) + 4		# 4 is for location and scale of prediction
 	p = find_eq(u0, nparam, 10000, tf, st, re)
 	p[end] = u0[2*n]			# set so that u[8] = p[end], and guess is 0.5
 	optf = OptimizationFunction((p,x) -> loss(p,n,T,u0,tf,st,re; saveat=saveat),
 				Optimization.AutoForwardDiff())
 	prob = OptimizationProblem(optf,p)
 	# OptimizationOptimisers.Sophia(η=0.001)
-	solve(prob, OptimizationOptimisers.Sophia(η=0.001),
+	solve(prob, OptimizationOptimisers.Sophia(η=0.001), # η=
 					maxiters=maxiters, callback=callback)
 end
 
@@ -56,7 +56,7 @@ end
 nn_input(pr,input) =
 	([pr[1],pr[2],input],[pr[1],pr[2],input],pr[1:2],[pr[3]])
 
-# requires 51 parameters, length(p) == 16 + 33 + 2 = 51
+# requires 49+x parameters, length(p) == 16 + 33 + x, where x is number used in loss
 function ode(u, p, t, n, v, tf, st, re)
 	@assert n == 4
 	u_m = @view u[1:n]			# mRNA
@@ -65,7 +65,7 @@ function ode(u, p, t, n, v, tf, st, re)
 	m_d = @view p[n+1:2n]
 	p_a = @view p[2n+1:3n]
 	p_d = @view p[3n+1:4n]
-	p_tf = @view p[4n+1:end-2]
+	p_tf = @view p[4n+1:end-4]
 	
 	input = v(t)
 		
@@ -79,27 +79,40 @@ end
 # In Optimization.jl, confusing notation. There, u is optimized, and p
 # are constant parameters for the OptimizationFunction. Here, p are the
 # parameters to be optimized, and u are the ode variables
-function loss(p, n, T, u0, tf, st, re; saveat=0.1, skip=0.1)
-	try
-		skip = Int(floor(skip*T/saveat))
-		tspan = (0,T)
-		y,t = rw(T; saveat=saveat)
-		v = ema_interp(y,t)
-		prob = ODEProblem((u,p,t) -> ode(u, p, t, n, v, tf, st, re), u0, tspan, p)
-		sol = solve(prob, Tsit5(), saveat=saveat, maxiters=100000)
-		y_diff = calc_y_diff(y,1)
-		y_true = calc_y_true(y_diff)[1+skip:end]
-		s = @view sol[2*n,:][1+skip:end-1]
-		yp = sigmoidc.(p[end-1] .* (s .- u0[2*n]))
-		return sum(CrossEntropyLoss(),yp,y_true), yp, y_true, sol
-	catch e
-		if isa(e, InterruptException)
-			println("training loop terminated by interrupt")
-			exit()
-		else
-			rethrow()
-		end
-	end
+# Train so that p1 is input at last step, p2 is current input - prev,
+# with p1 and p2 both adjust by affine transformation of parameters
+function loss(p, n, T, u0, tf, st, re; saveat=0.1, skip=0.25)
+	skip = Int(floor(skip*T/saveat))
+	tspan = (0,T)
+	y,t = rw(T/10000; sigma=0.2, saveat=0.0001*saveat, low=0.25, high=0.75)
+	v = ema_interp(y,10000*t)
+	prob = ODEProblem((u,p,t) -> ode(u, p, t, n, v, tf, st, re), u0, tspan, p)
+	sol = solve(prob, Tsit5(), saveat=saveat, maxiters=100000)
+	y_diff = calc_y_diff(y,1)[1+skip:end]
+	y_true = calc_y_true(y_diff)
+	#s = @view sol[n+2,:][1+skip:end-1]
+	s = @view sol[n+1,:][1+skip:end]
+	yp = y_true
+	#return sum(abs2.(s .- p[end-1]*(y_diff .- p[end]))), yp, y_true, sol
+	#return sum(abs2.(p[end-1]*(s .- p[end]) .- y_diff)), yp, y_true, sol
+	return sum(abs2.(p[end-1]*(s .- p[end]) .- y[skip:end-1])), yp, y_true, sol, y, p
+end
+
+# In Optimization.jl, confusing notation. There, u is optimized, and p
+# are constant parameters for the OptimizationFunction. Here, p are the
+# parameters to be optimized, and u are the ode variables
+function loss_orig(p, n, T, u0, tf, st, re; saveat=0.1, skip=0.1)
+	skip = Int(floor(skip*T/saveat))
+	tspan = (0,T)
+	y,t = rw(T; saveat=saveat)
+	v = ema_interp(y,t)
+	prob = ODEProblem((u,p,t) -> ode(u, p, t, n, v, tf, st, re), u0, tspan, p)
+	sol = solve(prob, Tsit5(), saveat=saveat, maxiters=100000)
+	y_diff = calc_y_diff(y,1)
+	y_true = calc_y_true(y_diff)[1+skip:end]
+	s = @view sol[2*n,:][1+skip:end-1]
+	yp = sigmoidc.(p[end-1] .* (s .- u0[2*n]))
+	return sum(CrossEntropyLoss(),yp,y_true), yp, y_true, sol
 end
 
 function loss_eq(p, n, u0, tf, st, re)
@@ -108,7 +121,7 @@ function loss_eq(p, n, u0, tf, st, re)
 	return sum(abs2.(du))
 end
 
-function callback(state, loss, yp, y_true, sol)
+function callback(state, loss, yp, y_true, sol, y, p)
 	global iter += 1
 	acc = accuracy(yp,y_true)
 	pred_pos = sum((yp .> 0.5) .== true) / length(yp)
@@ -118,9 +131,11 @@ function callback(state, loss, yp, y_true, sol)
 			iter, loss, acc_ma, pred_pos)
 		pl = plot(layout=(4,2),size=(800,600),legend=:none)
 		panels = vcat(1:2:7,2:2:8)
-		for i in 1:8
+		for i in 1:7
 			plot!(sol[i,:],subplot=panels[i])
 		end
+		plot!(y[20:end-1], subplot=8,color=mma[1])
+		plot!(p[end-1]*(sol[5,21:end] .- p[end]), subplot=8,color=mma[2])
 		display(pl)
 	end
 	return false
