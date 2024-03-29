@@ -18,7 +18,7 @@ function driver_opt(T=30; maxiters=10)
 	global iter = 0
 	n = 4
 	saveat = 1.0
-	u0 = vcat(1e1*ones(n),1e3*ones(n))
+	u0 = vcat(1e2*ones(n),1e3*ones(n))
 
 	tf, pp, st, re = make_activation()
 	nparam = 4*n + length(pp) + 2		# 2 is for location and scale of prediction
@@ -37,7 +37,9 @@ function find_eq(u0, nparam, maxiters, tf, st, re)
 	p = 1e0 * rand(nparam) .+ 0.1		# must adjust weighting for equil values
 	optf = OptimizationFunction((p,x) -> loss_eq(p,n,u0,tf,st,re))
 	prob = OptimizationProblem(optf,p)
-	solve(prob, NelderMead(), maxiters=maxiters,callback=callback)
+	p = solve(prob, NelderMead(), maxiters=maxiters,callback=callback)
+	println("Eq loss = ", loss_eq(p,n,u0,tf,st,re))
+	return p
 end
 
 function make_activation()
@@ -125,7 +127,7 @@ function callback(state, loss, yp, y_true, sol)
 end
 
 function callback(state, loss)
-	println("Loss2 = ", loss)
+	#println("Loss2 = ", loss)
 	return false
 end
 
