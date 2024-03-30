@@ -24,12 +24,12 @@ function driver_opt(T=30; maxiters=10)
 	tf, pp, st, re = make_activation()
 	nparam = 4*n + length(pp) + 4		# 4 is for location and scale of prediction
 	p = find_eq(u0, nparam, tf, st, re)
-	p[end] = 1 / u0[2*n]			# set so that 1/u[8] = p[end], and guess is 0.5
+	p[end] = u0[2*n]			# set so that u[8] = p[end]
 	optf = OptimizationFunction((p,x) -> loss(p,n,T,u0,tf,st,re; saveat=saveat),
 				Optimization.AutoForwardDiff())
 	prob = OptimizationProblem(optf,p)
 	# OptimizationOptimisers.Sophia(η=0.001)
-	solve(prob, OptimizationOptimisers.Sophia(η=0.001), # η=
+	solve(prob, OptimizationOptimisers.Sophia(η=0.005), # η=
 					maxiters=maxiters, callback=callback)
 end
 
@@ -84,7 +84,7 @@ end
 # with p1 and p2 both adjust by affine transformation of parameters
 function loss(p, n, T, u0, tf, st, re; saveat=0.1, skip=0.1, scale=1e4)
 	tspan = (0,T)
-	y,t = rw(T/scale; sigma=0.2, saveat=1/scale, low=0.4, high=0.6)
+	y,t = rw(T/scale; sigma=0.2, saveat=1/scale, low=0.25, high=0.75)
 	v = ema_interp(y,scale*t)
 	prob = ODEProblem((u,p,t) -> ode(u, p, t, n, v, tf, st, re), u0, tspan, p)
 	sol = solve(prob, Tsit5(), saveat=1.0, maxiters=100000)
@@ -134,9 +134,9 @@ function callback(state, loss, yp, y_true, sol, y, p)
 		for i in 1:7
 			plot!(sol[i,:],subplot=panels[i])
 		end
-		plot!(y[20:end-1], subplot=8,color=mma[1])
-		#plot!(p[end-1]*(sol[5,21:end] .- p[end]), subplot=8,color=mma[2])
-		plot!(0.5*p[end]*sol[5,21:end], subplot=8,color=mma[2])
+		skip = Int(floor(0.1*length(y)))
+		plot!(y[skip:end-1], subplot=8,color=mma[1])
+		plot!(p[end-1]*(sol[5,1+skip:end] .- p[end]), subplot=8,color=mma[2])
 		display(pl)
 	end
 	return false
