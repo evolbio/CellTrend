@@ -23,7 +23,8 @@ function driver_opt(T=30; maxiters=10, save=false, saveat=0.1, n=4,
 	tf, pp, st, re = make_activation()
 	nparam = 4*n + length(pp) + 6		# 6 is for location and scale of prediction
 	p = find_eq(u0, nparam, tf, st, re)
-	p[end] = u0[2*n]			# set so that u[8] = p[end]
+	p[end] = p[end-2] = 0.5*u0[2*n]			# set so that u[8] = p[end]
+	p[end-4] = u0[2*n]
 	optf = OptimizationFunction(
 				(p,x) -> loss(p,n,T,u0,tf,st,re; saveat=saveat,scale=scale),
 				Optimization.AutoForwardDiff())
@@ -95,9 +96,9 @@ function loss(p, n, T, u0, tf, st, re; saveat=0.1, skip=0.1, scale=1e1)
 	rescale = scale/saveat
 	y,t = rw(T/rescale; sigma=0.2, saveat=saveat, low=0.25, high=0.75)
 	v = ema_interp(y,rescale*t)
-	y = v.(0:T)
+	#y = v.(0:T)
 	prob = ODEProblem((u,p,t) -> ode(u, p, t, n, v, tf, st, re), u0, tspan, p)
-	sol = solve(prob, Tsit5(), saveat=1.0, maxiters=100000)
+	sol = solve(prob, Tsit5(), saveat=scale, maxiters=100000)
 	skip = Int(floor(skip*length(sol.t)))
 	y_diff = calc_y_diff(y,1)[1+skip:end]
 	y_true = calc_y_true(y_diff)
