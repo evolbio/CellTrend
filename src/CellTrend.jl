@@ -14,7 +14,7 @@ sigmoidc(x; epsilon=1e-5) = clamp(1 / (1 + exp(-x)), epsilon, 1-epsilon)
 acc_ma = 0
 iter = 0			
 
-function driver_opt(T=30; maxiters=10, save=false, saveat=0.1, n=4,
+function driver_opt(T=30; maxiters=10, save=false, saveat=0.1, n=3,
 		dir="/Users/steve/Desktop/", learn=0.005, scale=1e1)
 	global acc_ma = 0.5
 	global iter = 0
@@ -22,7 +22,7 @@ function driver_opt(T=30; maxiters=10, save=false, saveat=0.1, n=4,
 
 	tf, pp, st, re = make_activation()
 	nparam = 4*n + length(pp) + 6		# 6 is for location and scale of prediction
-	p = find_eq(u0, nparam, tf, st, re)
+	p = find_eq(n, u0, nparam, tf, st, re)
 	p[end] = p[end-2] = p[end-4] = u0[2*n]			# set so that u[8] = p[end]
 	optf = OptimizationFunction(
 				(p,x) -> loss(p,n,T,u0,tf,st,re; saveat=saveat,scale=scale),
@@ -40,8 +40,7 @@ function driver_opt(T=30; maxiters=10, save=false, saveat=0.1, n=4,
 	return d
 end
 
-function find_eq(u0, nparam, tf, st, re; maxiters=10000)
-	n = 4
+function find_eq(n, u0, nparam, tf, st, re; maxiters=10000)
 	p = 1e0 * rand(nparam) .+ 0.1		# must adjust weighting for equil values
 	optf = OptimizationFunction((p,x) -> loss_eq(p,n,u0,tf,st,re))
 	prob = OptimizationProblem(optf,p)
@@ -53,22 +52,20 @@ end
 function make_activation()
 	f1 = Chain(Dense(3 => 2, mish), Dense(2 => 1))
 	f2 = Chain(Dense(3 => 2, mish), Dense(2 => 1))
-	f3 = Chain(Dense(2 => 2, mish), Dense(2 => 1))
-	f4 = Chain(Dense(1 => 1, identity))
-	f = Parallel(nothing, f1, f2, f3, f4)
+	f3 = Chain(Dense(3 => 2, mish), Dense(2 => 1))
+	f = Parallel(nothing, f1, f2, f3)
 	ps, st = Lux.setup(Random.default_rng(),f)
 	pp, re = destructure(ps)
 	return f, pp, st, re
 end
 
 nn_input(pr,input) =
-	([pr[1],pr[2],input],[pr[1],pr[2],input],pr[1:2],[pr[3]])
+	([pr[1],pr[2],input],[pr[1],pr[2],input],[pr[1],pr[2],input])
 tf_out(tf,u_p,input,re,p_tf,st,n) = 
 	[tf(nn_input(u_p,input), re(p_tf), st)[1][i][1] for i in 1:n]
 
-# requires 49+x parameters, length(p) == 16 + 33 + x, where x is number used in loss
+# length(p) == 4n + p_nn + x, where x is number used in loss
 function ode(u, p, t, n, v, tf, st, re)
-	@assert n == 4
 	u_m = @view u[1:n]			# mRNA
 	u_p = @view u[n+1:2n]		# protein
 	m_a = @view p[1:n]
@@ -110,7 +107,7 @@ function loss(p, n, T, u0, tf, st, re; saveat=0.1, skip=0.1, scale=1e1)
 	s3 = p[end-5]*(sol[n+3,:][1+skip:end-1] .- p[end-4])
 	yp = sigmoidc.(s3)
 	lm = sum(CrossEntropyLoss(),yp,y_true)
-	return l1+l2+lm, yp, y_true, sol, y, p
+	return l1+l2+lm, yp, y_true, sol, y, p, n
 end
 
 function loss_eq(p, n, u0, tf, st, re)
@@ -119,7 +116,7 @@ function loss_eq(p, n, u0, tf, st, re)
 	return sum(abs2.(du))
 end
 
-function callback(state, loss, yp, y_true, sol, y, p)
+function callback(state, loss, yp, y_true, sol, y, p, n)
 	global iter += 1
 	acc = accuracy(yp,y_true)
 	pred_pos = sum((yp .> 0.5) .== true) / length(yp)
@@ -127,16 +124,16 @@ function callback(state, loss, yp, y_true, sol, y, p)
 	if iter % 10 == 0
 		@printf("%4d: Loss = %8.2f, accuracy = %5.3f, fr_pos = %5.3f\n",
 			iter, loss, acc_ma, pred_pos)
-		pl = plot(layout=(5,2),size=(800,750),legend=:none)
-		panels = vcat(1:2:7,2:2:8)
+		pl = plot(layout=(n+1,2),size=(800,150*(n+1)),legend=:none)
+		panels = vcat(1:2:(2n-1),2:2:2n)
 		skip = Int(floor(0.1*length(y)))
-		for i in 1:8
+		for i in 1:2n
 			plot!(sol[i,1+skip:end],subplot=panels[i])
 		end
-		plot!(y[skip:end-1], subplot=9,color=mma[1])
-		plot!(p[end-1]*(sol[5,1+skip:end] .- p[end]), subplot=9,color=mma[2])
-		plot!(y[1+skip:end], subplot=10,color=mma[1])
-		plot!(p[end-3]*(sol[6,1+skip:end] .- p[end-2]), subplot=10,color=mma[2])
+		plot!(y[skip:end-1], subplot=2n+1,color=mma[1])
+		plot!(p[end-1]*(sol[n+1,1+skip:end] .- p[end]), subplot=2n+1,color=mma[2])
+		plot!(y[1+skip:end], subplot=2n+2,color=mma[1])
+		plot!(p[end-3]*(sol[n+2,1+skip:end] .- p[end-2]), subplot=2n+2,color=mma[2])
 		display(pl)
 	end
 	return false
