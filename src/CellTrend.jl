@@ -1,7 +1,7 @@
 module CellTrend
 using DifferentialEquations, Optimization, LossFunctions, Statistics,
 		OptimizationOptimisers, OptimizationOptimJL, Lux, Random, Plots,
-		Printf
+		Printf, Dates
 include("Data.jl")
 using .Data
 include("/Users/steve/sim/zzOtherLang/julia/modules/MMAColors.jl")
@@ -14,23 +14,29 @@ sigmoidc(x; epsilon=1e-5) = clamp(1 / (1 + exp(-x)), epsilon, 1-epsilon)
 acc_ma = 0
 iter = 0			
 
-function driver_opt(T=30; maxiters=10)
+function driver_opt(T=30; maxiters=10, save=false, saveit=0.1, n=4,
+		dir="/Users/steve/Desktop/")
 	global acc_ma = 0.5
 	global iter = 0
-	n = 4
-	saveat = 0.1
 	u0 = vcat(1e0*ones(n),1e0*ones(n))
 
 	tf, pp, st, re = make_activation()
-	nparam = 4*n + length(pp) + 4		# 4 is for location and scale of prediction
+	nparam = 4*n + length(pp) + 6		# 6 is for location and scale of prediction
 	p = find_eq(u0, nparam, tf, st, re)
 	p[end] = u0[2*n]			# set so that u[8] = p[end]
 	optf = OptimizationFunction((p,x) -> loss(p,n,T,u0,tf,st,re; saveat=saveat),
 				Optimization.AutoForwardDiff())
 	prob = OptimizationProblem(optf,p)
 	# OptimizationOptimisers.Sophia(η=0.001)
-	solve(prob, OptimizationOptimisers.Sophia(η=0.005), # η=
+	s = solve(prob, OptimizationOptimisers.Sophia(η=0.005), # η=
 					maxiters=maxiters, callback=callback)
+	d = (p=s.u, loss=p.objective, tf=tf, re=re, st=st, n=n, T=T, maxiters=maxiters,
+			saveit=saveit, u0=u0)
+	if save
+		date = Dates.format(Dates.now(), "yyyy-mm-dd-HH-MM-SS");
+		serialize(dir * "$date.jls", d);
+	end
+	return d
 end
 
 function find_eq(u0, nparam, tf, st, re; maxiters=10000)
@@ -66,7 +72,7 @@ function ode(u, p, t, n, v, tf, st, re)
 	m_d = @view p[n+1:2n]
 	p_a = @view p[2n+1:3n]
 	p_d = @view p[3n+1:4n]
-	p_tf = @view p[4n+1:end-4]
+	p_tf = @view p[4n+1:end-6]
 	
 	input = v(t)
 		
@@ -91,28 +97,14 @@ function loss(p, n, T, u0, tf, st, re; saveat=0.1, skip=0.1, scale=1e4)
 	skip = Int(floor(skip*length(sol.t)))
 	y_diff = calc_y_diff(y,1)[1+skip:end]
 	y_true = calc_y_true(y_diff)
-	s = @view sol[n+1,:][1+skip:end]
-	yp = y_true
-	#return sum(abs2.(s .- p[end-1]*(y_diff .- p[end]))), yp, y_true, sol
-	#return sum(abs2.(p[end-1]*(s .- p[end]) .- y_diff)), yp, y_true, sol
-	return sum(abs2.(p[end-1]*(s .- p[end]) .- y[skip:end-1])), yp, y_true, sol, y, p
-end
-
-# In Optimization.jl, confusing notation. There, u is optimized, and p
-# are constant parameters for the OptimizationFunction. Here, p are the
-# parameters to be optimized, and u are the ode variables
-function loss_orig(p, n, T, u0, tf, st, re; saveat=0.1, skip=0.1)
-	skip = Int(floor(skip*T/saveat))
-	tspan = (0,T)
-	y,t = rw(T; saveat=saveat)
-	v = ema_interp(y,t)
-	prob = ODEProblem((u,p,t) -> ode(u, p, t, n, v, tf, st, re), u0, tspan, p)
-	sol = solve(prob, Tsit5(), saveat=saveat, maxiters=100000)
-	y_diff = calc_y_diff(y,1)
-	y_true = calc_y_true(y_diff)[1+skip:end]
-	s = @view sol[2*n,:][1+skip:end-1]
-	yp = sigmoidc.(p[end-1] .* (s .- u0[2*n]))
-	return sum(CrossEntropyLoss(),yp,y_true), yp, y_true, sol
+	s1 = p[end-1]*(sol[n+1,:][1+skip:end] .- p[end])
+	#s2 = p[end-3]*(sol[n+2,:][2+skip:end] .- p[end-2])
+	s3 = p[end-5]*(sol[n+3,:][1+skip:end-1] .- p[end-4])
+	yp = sigmoidc.(s3)
+	l1 = sum(abs2.(s1 .- y[skip:end-1]))
+	#l2 = sum(abs2.(s2 .- y_diff))	# check time matching
+	lm = sum(CrossEntropyLoss(),yp,y_true)
+	return l1+lm, yp, y_true, sol, y, p
 end
 
 function loss_eq(p, n, u0, tf, st, re)
@@ -129,14 +121,14 @@ function callback(state, loss, yp, y_true, sol, y, p)
 	if iter % 10 == 0
 		@printf("%4d: Loss = %8.2f, accuracy = %5.3f, fr_pos = %5.3f\n",
 			iter, loss, acc_ma, pred_pos)
-		pl = plot(layout=(4,2),size=(800,600),legend=:none)
+		pl = plot(layout=(5,2),size=(800,750),legend=:none)
 		panels = vcat(1:2:7,2:2:8)
-		for i in 1:7
-			plot!(sol[i,:],subplot=panels[i])
-		end
 		skip = Int(floor(0.1*length(y)))
-		plot!(y[skip:end-1], subplot=8,color=mma[1])
-		plot!(p[end-1]*(sol[5,1+skip:end] .- p[end]), subplot=8,color=mma[2])
+		for i in 1:8
+			plot!(sol[i,1+skip:end],subplot=panels[i])
+		end
+		plot!(y[skip:end-1], subplot=9,color=mma[1])
+		plot!(p[end-1]*(sol[5,1+skip:end] .- p[end]), subplot=9,color=mma[2])
 		display(pl)
 	end
 	return false
