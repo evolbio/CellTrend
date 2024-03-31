@@ -23,8 +23,7 @@ function driver_opt(T=30; maxiters=10, save=false, saveat=0.1, n=4,
 	tf, pp, st, re = make_activation()
 	nparam = 4*n + length(pp) + 6		# 6 is for location and scale of prediction
 	p = find_eq(u0, nparam, tf, st, re)
-	p[end] = p[end-2] = 0.5*u0[2*n]			# set so that u[8] = p[end]
-	p[end-4] = u0[2*n]
+	p[end] = p[end-2] = p[end-4] = u0[2*n]			# set so that u[8] = p[end]
 	optf = OptimizationFunction(
 				(p,x) -> loss(p,n,T,u0,tf,st,re; saveat=saveat,scale=scale),
 				Optimization.AutoForwardDiff())
