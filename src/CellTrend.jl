@@ -124,11 +124,12 @@ end
 function callback(state, loss, yp, y_true, sol, y, p, n, y_diff)
 	global iter += 1
 	acc = accuracy(yp,y_true)
+	max_acc = prob_pred_next(y)
 	pred_pos = sum((yp .> 0.5) .== true) / length(yp)
 	global acc_ma = 0.95*acc_ma + 0.05*acc
 	if iter % 10 == 0
-		@printf("%4d: Loss = %8.2f, accuracy = %5.3f, fr_pos = %5.3f\n",
-			iter, loss, acc_ma, pred_pos)
+		@printf("%4d: Loss = %8.2f, accuracy = %5.3f, max_acc = %5.3f, fr_pos = %5.3f\n",
+			iter, loss, acc_ma, max_acc, pred_pos)
 		pl = plot(layout=(n+2,2),size=(800,150*(n+2)),legend=:none)
 		panels = vcat(1:2:(2n-1),2:2:2n)
 		skip = Int(floor(0.1*length(y)))
