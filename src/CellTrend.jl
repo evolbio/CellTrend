@@ -6,7 +6,7 @@ include("Data.jl")
 using .Data
 include("/Users/steve/sim/zzOtherLang/julia/modules/MMAColors.jl")
 using .MMAColors
-export ema, rw, driver_opt
+export ema, rw, driver_opt, loss
 
 sigmoidc(x; epsilon=1e-5) = clamp(1 / (1 + exp(-x)), epsilon, 1-epsilon)
 
@@ -18,7 +18,7 @@ function driver_opt(T=30; maxiters=10, save=true, saveat=0.1, n=3,
 		dir="/Users/steve/Desktop/", learn=0.005, scale=1e1)
 	global acc_ma = 0.5
 	global iter = 0
-	u0 = vcat(1e0*ones(n),1e0*ones(n))
+	u0 = vcat(1e0*ones(n),1e2*ones(n))
 
 	tf, pp, st, re = make_activation()
 	nparam = 4*n + length(pp) + 6		# 6 is for location and scale of prediction
@@ -54,7 +54,7 @@ end
 function make_activation()
 	f1 = Chain(Dense(3 => 2, mish), Dense(2 => 1))
 	f2 = Chain(Dense(3 => 2, mish), Dense(2 => 1))
-	f3 = Chain(Dense(2 => 2, mish), Dense(2 => 1))
+	f3 = Chain(Dense(2 => 2, sigmoid), Dense(2 => 1))
 	f = Parallel(nothing, f1, f2, f3)
 	ps, st = Lux.setup(Random.default_rng(),f)
 	pp, re = destructure(ps)
@@ -100,6 +100,8 @@ function loss(p, n, T, u0, tf, st, re; saveat=0.1, skip=0.1, scale=1e1)
 	#y = v.(0:T)
 	prob = ODEProblem((u,p,t) -> ode(u, p, t, n, v, tf, st, re), u0, tspan, p)
 	sol = solve(prob, Tsit5(), saveat=scale, maxiters=100000)
+	# BS3 about 1/3 faster but less accurate
+	#sol = solve(prob, BS3(), saveat=scale, maxiters=100000)
 	skip = Int(floor(skip*length(sol.t)))
 	y_diff = calc_y_diff(y,1)[1+skip:end]
 	y_true = calc_y_true(y_diff)
@@ -112,7 +114,7 @@ function loss(p, n, T, u0, tf, st, re; saveat=0.1, skip=0.1, scale=1e1)
 	#lm = sum(CrossEntropyLoss(),yp,y_true)
 	s3_2 = p[end-5]*(sol[n+3,:][2+skip:end] .- p[end-4])
 	l3_2 = 10*sum(abs2.(s3_2 .- y_diff))
-	return l1+l2+l3_2, yp, y_true, sol, y, p, n, y_diff
+	return l1+l2, yp, y_true, sol, y, p, n, y_diff
 end
 
 function loss_eq(p, n, u0, tf, st, re)
@@ -121,13 +123,13 @@ function loss_eq(p, n, u0, tf, st, re)
 	return sum(abs2.(du))
 end
 
-function callback(state, loss, yp, y_true, sol, y, p, n, y_diff)
+function callback(state, loss, yp, y_true, sol, y, p, n, y_diff; direct=false)
 	global iter += 1
 	acc = accuracy(yp,y_true)
 	max_acc = prob_pred_next(y)
 	pred_pos = sum((yp .> 0.5) .== true) / length(yp)
 	global acc_ma = 0.95*acc_ma + 0.05*acc
-	if iter % 10 == 0
+	if iter % 10 == 0 || direct == true
 		@printf("%4d: Loss = %8.2f, accuracy = %5.3f, max_acc = %5.3f, fr_pos = %5.3f\n",
 			iter, loss, acc_ma, max_acc, pred_pos)
 		pl = plot(layout=(n+2,2),size=(800,150*(n+2)),legend=:none)
