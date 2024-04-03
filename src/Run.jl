@@ -35,13 +35,19 @@ using CellTrend, Serialization
 #		https://docs.sciml.ai/DiffEqDocs/stable/solvers/ode_solve/
 
 # -- Use NN tf function to find p1, p2 matches to input-1, input
-d = driver_opt(10000;maxiters=500,scale=100);
+d = driver_opt(10000;maxiters=3000,scale=100,loss_type="12");
 
+
+# Read results back in and test
 dir = "/Users/steve/Desktop/";
-d = deserialize(dir * "2024-04-02-15-04-13.jls");
+d = deserialize(dir * "2024-04-03-10-14-13.jls");
 # fields(d)
 loss_val, yp, y_true, sol, y, p, n, y_diff = 
 	loss(d.p, d.n, d.T, d.u0, d.tf, d.st, d.re; saveat=d.saveat, scale=d.scale);
 CellTrend.callback(nothing, loss_val, yp, y_true, sol, y, p, n, y_diff;
 		direct=true);
+
+# Optimize p3 as predictor of direction of change
+d = driver_opt(10000;maxiters=1000,scale=100,loss_type="all",
+				restart="2024-04-03-11-07-49.jls");
 

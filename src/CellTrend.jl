@@ -15,17 +15,24 @@ acc_ma = 0
 iter = 0			
 
 function driver_opt(T=30; maxiters=10, save=true, saveat=0.1, n=3,
-		dir="/Users/steve/Desktop/", learn=0.005, scale=1e1)
+		dir="/Users/steve/Desktop/", learn=0.005, scale=1e1,
+		restart="", loss_type="12")
 	global acc_ma = 0.5
 	global iter = 0
-	u0 = vcat(1e0*ones(n),1e2*ones(n))
+	u0 = vcat(1e0*ones(n),1e0*ones(n))
 
 	tf, pp, st, re = make_activation()
 	nparam = 4*n + length(pp) + 6		# 6 is for location and scale of prediction
-	p = find_eq(n, u0, nparam, tf, st, re)
-	p[end] = p[end-2] = p[end-4] = u0[2*n]			# set so that u[8] = p[end]
+	if restart !== ""
+		d = deserialize(dir * restart)
+		p = d.p
+	else
+		p = find_eq(n, u0, nparam, tf, st, re)
+		p[end] = p[end-2] = p[end-4] = u0[2*n]			# set so that u[8] = p[end]
+	end
 	optf = OptimizationFunction(
-				(p,x) -> loss(p,n,T,u0,tf,st,re; saveat=saveat,scale=scale),
+				(p,x) -> loss(p,n,T,u0,tf,st,re;
+					loss_type=loss_type, saveat=saveat,scale=scale),
 				Optimization.AutoForwardDiff())
 	prob = OptimizationProblem(optf,p)
 	# OptimizationOptimisers.Sophia(η=0.001)
@@ -33,13 +40,17 @@ function driver_opt(T=30; maxiters=10, save=true, saveat=0.1, n=3,
 					maxiters=maxiters, callback=callback)
 	d = (p=s.u, loss=s.objective[1], tf=tf, re=re, st=st, n=n, T=T, maxiters=maxiters,
 			saveat=saveat, u0=u0, learn=learn, scale=scale)
-	if save save_results(d; dir=dir) end
+	if save
+		outfile = save_results(d; dir=dir)
+		println("Out file = ", outfile)
+	end
 	return d
 end
 
 function save_results(d; dir="/Users/steve/Desktop/")
 	date = Dates.format(Dates.now(), "yyyy-mm-dd-HH-MM-SS");
-	serialize(dir * "$date.jls", d);	
+	serialize(dir * "$date.jls", d);
+	return "$date.jls"
 end
 
 function find_eq(n, u0, nparam, tf, st, re; maxiters=10000)
@@ -54,19 +65,18 @@ end
 function make_activation()
 	f1 = Chain(Dense(3 => 2, mish), Dense(2 => 1))
 	f2 = Chain(Dense(3 => 2, mish), Dense(2 => 1))
-	f3 = Chain(Dense(2 => 2, sigmoid), Dense(2 => 1))
-	f = Parallel(nothing, f1, f2, f3)
+	f = Parallel(nothing, f1, f2)
 	ps, st = Lux.setup(Random.default_rng(),f)
 	pp, re = destructure(ps)
 	return f, pp, st, re
 end
 
 tf_out(tf,u_p,input,re,p_tf,st,n) = 
-	[tf(nn_input(u_p,input), re(p_tf), st)[1][i][1] for i in 1:n]
+	[tf(nn_input(u_p,input), re(p_tf), st)[1][i][1] for i in 1:2]
 
 function nn_input(pr,input)
 	x = [pr[1],pr[2],input]
-	return (x,x,pr[1:2])
+	return (x,x)
 end
 
 # length(p) == 4n + p_nn + x, where x is number used in loss
@@ -80,7 +90,9 @@ function ode(u, p, t, n, v, tf, st, re)
 	p_tf = @view p[4n+1:end-6]
 	
 	input = v(t)
-	f = tf_out(tf,u_p,input,re,p_tf,st,n)
+	f12 = tf_out(tf,u_p,input,re,p_tf,st,n)
+	f3 = sigmoid(u_p[2] - u_p[1] - p[end-4])
+	f = [f12[1],f12[2],f3]
 	
 	du_m = m_a .* f .- m_d .* u_m		# mRNA level
 	du_p = p_a .* u_m .- p_d .* u_p		# protein level
@@ -92,7 +104,7 @@ end
 # parameters to be optimized, and u are the ode variables
 # Train so that p1 is input at last step, p2 is current input - prev,
 # with p1 and p2 both adjust by affine transformation of parameters
-function loss(p, n, T, u0, tf, st, re; saveat=0.1, skip=0.1, scale=1e1)
+function loss(p, n, T, u0, tf, st, re; loss_type="12", saveat=0.1, skip=0.1, scale=1e1)
 	tspan = (0,T)
 	rescale = scale/saveat
 	y,t = rw(T/rescale; sigma=0.2, saveat=saveat, low=0.25, high=0.75)
@@ -105,16 +117,21 @@ function loss(p, n, T, u0, tf, st, re; saveat=0.1, skip=0.1, scale=1e1)
 	skip = Int(floor(skip*length(sol.t)))
 	y_diff = calc_y_diff(y,1)[1+skip:end]
 	y_true = calc_y_true(y_diff)
-	s1 = p[end-1]*(sol[n+1,:][1+skip:end] .- p[end])
-	l1 = sum(abs2.(s1 .- y[skip:end-1]))
-	s2 = p[end-3]*(sol[n+2,:][1+skip:end] .- p[end-2])
-	l2 = sum(abs2.(s2 .- y[1+skip:end]))
-	s3 = p[end-5]*(sol[n+3,:][1+skip:end-1] .- p[end-4])
+	s3 = sol[n+3,:][1+skip:end-1] .- p[end-5]
 	yp = sigmoidc.(s3)
-	#lm = sum(CrossEntropyLoss(),yp,y_true)
-	s3_2 = p[end-5]*(sol[n+3,:][2+skip:end] .- p[end-4])
-	l3_2 = 10*sum(abs2.(s3_2 .- y_diff))
-	return l1+l2, yp, y_true, sol, y, p, n, y_diff
+	lt = 0
+	if loss_type == "12" || loss_type == "all"
+		s1 = p[end-1]*(sol[n+1,:][1+skip:end] .- p[end])
+		l1 = sum(abs2.(s1 .- y[skip:end-1]))
+		s2 = p[end-3]*(sol[n+2,:][1+skip:end] .- p[end-2])
+		l2 = sum(abs2.(s2 .- y[1+skip:end]))
+		lt = l1+l2
+	end
+	if loss_type == "3" || loss_type == "all"
+		lm = sum(CrossEntropyLoss(),yp,y_true)
+		lt += lm
+	end
+	return lt, yp, y_true, sol, y, p, n, y_diff
 end
 
 function loss_eq(p, n, u0, tf, st, re)
@@ -142,10 +159,10 @@ function callback(state, loss, yp, y_true, sol, y, p, n, y_diff; direct=false)
 		plot!(p[end-1]*(sol[n+1,1+skip:end] .- p[end]), subplot=2n+1,color=mma[2])
 		plot!(y[1+skip:end], subplot=2n+2,color=mma[1])
 		plot!(p[end-3]*(sol[n+2,1+skip:end] .- p[end-2]), subplot=2n+2,color=mma[2])
-		#plot!(y[skip:end-1], subplot=2n+3,color=mma[1])
-		plot!(y_diff, subplot=2n+3,color=mma[2])
-		plot!(p[end-5]*(sol[n+3,:][2+skip:end] .- p[end-4]),
-				subplot=2n+3,color=mma[3],w=0.5)
+		plot!(y_diff, subplot=2n+3,color=mma[1])
+		ypc = yp .- 0.5
+		ypm = maximum(abs.(ypc))
+		plot!(ypc ./ (30*ypm), subplot=2n+3,color=mma[2])
 		display(pl)
 	end
 	return false
