@@ -12,10 +12,15 @@ sigmoidc(x; epsilon=1e-5) = clamp(1 / (1 + exp(-x)), epsilon, 1-epsilon)
 
 # globals for callback
 acc_ma = 0
-iter = 0			
+iter = 0
 
-function driver_opt(T=30; maxiters=10, save=true, saveat=0.1, n=3,
+function driver_opt(T=30; maxiters=10, save=true, saveat=0.1, rstate = nothing,
 		dir="/Users/steve/Desktop/", learn=0.005, scale=1e1, restart="")
+	if rstate === nothing
+		rstate = copy(Random.default_rng())
+		println(rstate)
+	end
+	copy!(Random.default_rng(), rstate)
 	global acc_ma = 0.5
 	global iter = 0
 	u0 = [1,1,0.5]
@@ -34,7 +39,7 @@ function driver_opt(T=30; maxiters=10, save=true, saveat=0.1, n=3,
 	# OptimizationOptimisers.Sophia(η=0.001)
 	s = solve(prob, OptimizationOptimisers.Sophia(η=0.005), # η=
 					maxiters=maxiters, callback=callback)
-	d = (p=s.u, loss=s.objective[1], T=T, maxiters=maxiters,
+	d = (p=s.u, loss=s.objective[1], T=T, maxiters=maxiters, rstate=rstate,
 			saveat=saveat, u0=u0, learn=learn, scale=scale)
 	if save
 		outfile = save_results(d; dir=dir)
@@ -118,6 +123,12 @@ end
 function callback(state, loss)
 	#println("Loss2 = ", loss)
 	return false
+end
+
+function plot_data(T,d; rstate = nothing)
+	rstate === nothing ?
+		println(copy(Random.default_rng())) :
+		copy!(Random.default_rng(), rstate)
 end
 
 end # module CellTrend
