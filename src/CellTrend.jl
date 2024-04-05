@@ -67,11 +67,6 @@ function ode(u, p, t, v)
 	return [du1,du2,du3]
 end
 
-function affine(s, p, skip)
-	@assert 2*length(s) == length(p)
-	[p[2*i-1]*(s[i][1+skip:end] .- p[2*i]) for i in 1:lastindex(s)]
-end
-
 # In Optimization.jl, confusing notation. There, u is optimized, and p
 # are constant parameters for the OptimizationFunction. Here, p are the
 # parameters to be optimized, and u are the ode variables
@@ -89,13 +84,15 @@ function loss(p, T, u0; loss_type="12", saveat=0.1, skip=0.1, scale=1e1)
 	skip = Int(floor(skip*length(sol.t)))
 	y_diff = calc_y_diff(y,1)[1+skip:end]
 	y_true = calc_y_true(y_diff)
-	s = [sol[i,:] for i in 1:3]
-	s = affine(s, p[end-5:end], skip)
-	yp = sigmoidc.(s[3])[1:end-1]
+	s1 = p[end]*(sol[1,:][1+skip:end] .- p[end-1])
+	s2 = p[end-2]*(sol[2,:][1+skip:end] .- p[end-3])
+	s3 = p[end-4]*(sol[3,:][1+skip:end] .- 0.5)
+	s = [s1,s2,s3]
+	yp = sigmoidc.(s3 .- p[end-5])[1:end-1]
 	lt = 0
 	if loss_type == "12" || loss_type == "all"
-		l1 = sum(abs2.(s[1] .- y[skip:end-1]))
-		l2 = sum(abs2.(s[2] .- y[1+skip:end]))
+		l1 = sum(abs2.(s1 .- y[skip:end-1]))
+		l2 = sum(abs2.(s2 .- y[1+skip:end]))
 		lt = l1+l2
 		if loss_type == "all" lt /= 100 end
 	end
@@ -124,6 +121,7 @@ function callback(state, loss, yp, y_true, s, y, p, y_diff, skip; direct=false)
 		pl = plot(layout=(3,1),size=(800,900),legend=:none)
 		plot!([y[skip:end-1],s[1]],subplot=1)
 		plot!([y[1+skip:end],s[2]],subplot=2)
+		plot!([y[1+skip:end],s[3]],subplot=3)
 		
 # 		plot!(y_diff, subplot=2n+3,color=mma[1])
 # 		ypc = yp .- 0.5
