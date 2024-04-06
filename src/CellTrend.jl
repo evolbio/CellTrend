@@ -137,23 +137,22 @@ function plot_data(T,d; rstate = nothing)
 	@printf("\nLoss = %8.2e, accuracy = %5.3f, max_acc = %5.3f, fr_pos = %5.3f\n\n",
 			loss_val, acc, max_acc, pred_pos)
 	
-	wd = 1.5
+	wd = 2
 	
-	lm = 1cm
 	r = skip:(length(y)-1)
 	yy = y[1+skip:end]
 	yy = yy * mean(sol[1]) / mean(yy)
-	pl = plot(layout=(3,1),size=(800,900),legend=:none)
+	pl = plot(layout=(3,1),size=(600,800),legend=:none)
 	plot!(r,sol[1],color=mma[1],w=wd,subplot=1)
-	plot!(r,yy,color=mma[2],w=wd,left_margin=0.8cm,subplot=1)
+	plot!(r,yy,color=mma[2],w=wd,left_margin=0.7cm,subplot=1)
 	plot!(r,sol[1],color=mma[1],w=wd,subplot=2)
 	plot!(r,sol[2],color=mma[2],w=wd,subplot=2)
-	plot!(r,sol[3],color=mma[1],w=wd,bottom_margin=0.6cm,subplot=3)
+	plot!(r,sol[3],color=mma[1],w=wd,bottom_margin=0.5cm,subplot=3)
 
-	annotate!(pl[3],(0.50,-0.18),"Temporal sample points",16)
-	annotate!(pl[1],(-0.068,0.5),text("Molecular abundance",12,rotation=90))
-	annotate!(pl[2],(-0.068,0.5),text("Molecular abundance",12,rotation=90))
-	annotate!(pl[3],(-0.068,0.52),text("Deviation from equilibrium",12,rotation=90))
+	annotate!(pl[3],(0.50,-0.18),"Temporal sample points",15)
+	annotate!(pl[1],(-0.08,0.5),text("Molecular abundance",12,rotation=90))
+	annotate!(pl[2],(-0.08,0.5),text("Molecular abundance",12,rotation=90))
+	annotate!(pl[3],(-0.08,0.52),text("Predicted direction",12,rotation=90))
 	chrs = 'a':'z'
 	for i in 1:3
 		annotate!(pl[i],(0.05,0.96),text(@sprintf("(%s)",chrs[i]),10))

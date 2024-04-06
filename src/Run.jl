@@ -17,7 +17,7 @@ d=driver_opt(30000; maxiters=10000, save=false, scale=300);
 
 ######################
 
-using CellTrend, Serialization, Random
+using CellTrend, Serialization, Random, Plots
 
 rstate = Random.Xoshiro(0x69a7dd129e7f60d5, 0x1e7da8f49b6237ba, 0x8317961216fc7d81, 0x2fc455ed74348caf, 0x7db9fb8192742ed2);
 d=driver_opt(30000; maxiters=10000, save=true, scale=300, rstate=rstate);
@@ -35,6 +35,7 @@ d = deserialize(dir * "SavedRun.jls");
 
 # use rstate = nothing to test different random seeds
 pl = plot_data(d.T, d; rstate=d.rstate)
+savefig(pl,"/Users/steve/Desktop/cellTrend.pdf");
 
 # testing
 loss_val, yp, y_true, sol, y, p, y_diff, skip = 
