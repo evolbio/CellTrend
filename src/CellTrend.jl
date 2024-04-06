@@ -1,12 +1,12 @@
 module CellTrend
 using DifferentialEquations, Optimization, LossFunctions, Statistics,
 		OptimizationOptimisers, OptimizationOptimJL, Random, Plots,
-		Printf, Dates, Serialization
+		Printf, Dates, Serialization, Measures
 include("Data.jl")
 using .Data
 include("/Users/steve/sim/zzOtherLang/julia/modules/MMAColors.jl")
 using .MMAColors
-export ema, rw, driver_opt, loss
+export ema, rw, driver_opt, loss, plot_data
 
 sigmoidc(x; epsilon=1e-5) = clamp(1 / (1 + exp(-x)), epsilon, 1-epsilon)
 
@@ -65,7 +65,7 @@ end
 
 function ode(u, p, t, v)
 	du1 = p[1]*v(t) - p[2]*u[1]
-	du2 = p[3]*(p[1]*v(t) - p[2]*u[2])	# faster response, same equil
+	du2 = p[3]*(p[1]*v(t) - p[2]*u[2])	# different response, same equil
 	du3 = p[4] + p[5]*(u[2] - u[1]) - p[6]*u[3]
 	return [du1,du2,du3]
 end
@@ -129,6 +129,38 @@ function plot_data(T,d; rstate = nothing)
 	rstate === nothing ?
 		println(copy(Random.default_rng())) :
 		copy!(Random.default_rng(), rstate)
+	loss_val, yp, y_true, sol, y, p, y_diff, skip = 
+		loss(d.p, d.T, d.u0,; saveat=d.saveat, scale=d.scale)
+	acc = accuracy(yp,y_true)
+	max_acc = prob_pred_next(y)
+	pred_pos = sum((yp .> 0.5) .== true) / length(yp)
+	@printf("\nLoss = %8.2e, accuracy = %5.3f, max_acc = %5.3f, fr_pos = %5.3f\n\n",
+			loss_val, acc, max_acc, pred_pos)
+	
+	wd = 1.5
+	
+	lm = 1cm
+	r = skip:(length(y)-1)
+	yy = y[1+skip:end]
+	yy = yy * mean(sol[1]) / mean(yy)
+	pl = plot(layout=(3,1),size=(800,900),legend=:none)
+	plot!(r,sol[1],color=mma[1],w=wd,subplot=1)
+	plot!(r,yy,color=mma[2],w=wd,left_margin=0.8cm,subplot=1)
+	plot!(r,sol[1],color=mma[1],w=wd,subplot=2)
+	plot!(r,sol[2],color=mma[2],w=wd,subplot=2)
+	plot!(r,sol[3],color=mma[1],w=wd,bottom_margin=0.6cm,subplot=3)
+
+	annotate!(pl[3],(0.50,-0.18),"Temporal sample points",16)
+	annotate!(pl[1],(-0.068,0.5),text("Molecular abundance",12,rotation=90))
+	annotate!(pl[2],(-0.068,0.5),text("Molecular abundance",12,rotation=90))
+	annotate!(pl[3],(-0.068,0.52),text("Deviation from equilibrium",12,rotation=90))
+	chrs = 'a':'z'
+	for i in 1:3
+		annotate!(pl[i],(0.05,0.96),text(@sprintf("(%s)",chrs[i]),10))
+	end
+
+	display(pl)
+	return pl
 end
 
 end # module CellTrend

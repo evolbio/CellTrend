@@ -27,11 +27,17 @@ dir = "/Users/steve/Desktop/";
 d = deserialize(dir * "2024-04-05-13-08-49.jls");
 # fields(d)
 
+# Saved run for generating publication analysis and graphics
 
-loss_val, yp, y_true, sol, y, p, n, y_diff = 
-	loss(d.p, d.n, d.T, d.u0, d.tf, d.st, d.re; saveat=d.saveat, scale=d.scale);
-CellTrend.callback(nothing, loss_val, yp, y_true, sol, y, p, n, y_diff;
-		direct=true);
+dir = "/Users/steve/sim/zzOtherLang/julia/projects/Circuits/" * 
+			"01_ML_Analogy/CellTrend/output/";
+d = deserialize(dir * "SavedRun.jls");
 
-# create plot for publication
+# use rstate = nothing to test different random seeds
+pl = plot_data(d.T, d; rstate=d.rstate)
+
+# testing
+loss_val, yp, y_true, sol, y, p, y_diff, skip = 
+		loss(d.p, d.T, d.u0,; saveat=d.saveat, scale=d.scale);
+CellTrend.callback(nothing, loss, yp, y_true, sol, y, p, y_diff, skip; direct=false);
 
