@@ -23,9 +23,9 @@ function driver_opt(T=30; maxiters=10, save=true, saveat=0.1, rstate = nothing,
 	copy!(Random.default_rng(), rstate)
 	global acc_ma = 0.5
 	global iter = 0
-	u0 = [1,1,0.5]
+	u0 = [1,1]
 
-	nparam = 6 + 1
+	nparam = 3 + 2
 	if restart !== ""
 		d = deserialize(dir * restart)
 		p = d.p
@@ -66,8 +66,7 @@ end
 function ode(u, p, t, v)
 	du1 = p[1]*v(t) - p[2]*u[1]
 	du2 = p[3]*(p[1]*v(t) - p[2]*u[2])	# different response, same equil
-	du3 = p[4] + p[5]*(u[2] - u[1]) - p[6]*u[3]
-	return [du1,du2,du3]
+	return [du1,du2]
 end
 
 # In Optimization.jl, confusing notation. There, u is optimized, and p
@@ -89,9 +88,9 @@ function loss(p, T, u0; saveat=0.1, skip=0.1, scale=1e1)
 	y_true = calc_y_true(y_diff)
 	s1 = sol[1,:][1+skip:end]
 	s2 = sol[2,:][1+skip:end]
-	s3 = p[end]*(sol[3,:][1+skip:end] .- p[4]/p[6])
-	s = [s1,s2,s3]
-	yp = sigmoidc.(s3)[1:end-1]
+	sdiff = s1 .- s2
+	s = [s1,s2]
+	yp = sigmoidc.(p[end]*(sdiff .- p[end-1]))[1:end-1]
 	lm = sum(CrossEntropyLoss(),yp,y_true)
 	return lm, yp, y_true, s, y, p, y_diff, skip
 end
@@ -114,7 +113,7 @@ function callback(state, loss, yp, y_true, s, y, p, y_diff, skip; direct=false)
 		pl = plot(layout=(3,1),size=(800,900),legend=:none)
 		plot!(y[1+skip:end],subplot=1)
 		plot!([s[1],s[2]],subplot=2)
-		plot!(s[3],subplot=3)
+		plot!(2*(yp .- 0.5),subplot=3)
 		display(pl)
 	end
 	return false
