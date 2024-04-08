@@ -25,7 +25,7 @@ function driver_opt(T=30; maxiters=10, save=true, saveat=0.1, rstate = nothing,
 	global iter = 0
 	u0 = [1,1]
 
-	nparam = 3 + 2
+	nparam = 3 + 0
 	if restart !== ""
 		d = deserialize(dir * restart)
 		p = d.p
@@ -90,7 +90,7 @@ function loss(p, T, u0; saveat=0.1, skip=0.1, scale=1e1)
 	s2 = sol[2,:][1+skip:end]
 	sdiff = s1 .- s2
 	s = [s1,s2]
-	yp = sigmoidc.(p[end]*(sdiff .- p[end-1]))[1:end-1]
+	yp = sigmoidc.(sdiff)[1:end-1]
 	lm = sum(CrossEntropyLoss(),yp,y_true)
 	return lm, yp, y_true, s, y, p, y_diff, skip
 end
