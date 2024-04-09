@@ -31,10 +31,15 @@ d = deserialize(dir * "2024-04-05-13-08-49.jls");
 
 dir = "/Users/steve/sim/zzOtherLang/julia/projects/Circuits/" * 
 			"01_ML_Analogy/CellTrend/output/";
-d = deserialize(dir * "SavedRun.jls");
+d = deserialize(dir * "SavedRun_2D.jls");
 
 # use rstate = nothing to test different random seeds
-pl = plot_data(d.T, d; rstate=d.rstate)
+pl = plot_data(d.T, d; rstate=d.rstate, subset=false)
+savefig(pl,"/Users/steve/Desktop/cellTrend.pdf");
+
+# publication figure
+rstate = Xoshiro(0x0ece70a30236ed33, 0x2e815a5584faccba, 0xcba5412ef2c6d28f, 0x6a274bff0a3e0757, 0xaeeda13e3d25b7d6);
+pl = plot_data(d.T, d; rstate=rstate, subset=true)
 savefig(pl,"/Users/steve/Desktop/cellTrend.pdf");
 
 # testing

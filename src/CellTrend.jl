@@ -33,12 +33,12 @@ function driver_opt(T=30; maxiters=10, save=true, saveat=0.1, rstate = nothing,
 		p = find_eq(u0, nparam)
 	end
 	optf = OptimizationFunction(
-				(p,x) -> loss(p,T,u0; saveat=saveat,scale=scale),
-				Optimization.AutoForwardDiff())
+			(p,x) -> loss(p,T,u0; saveat=saveat,scale=scale),
+			Optimization.AutoForwardDiff())
 	prob = OptimizationProblem(optf,p)
 	# OptimizationOptimisers.Sophia(η=0.001)
-	s = solve(prob, OptimizationOptimisers.Sophia(η=0.005), # η=
-					maxiters=maxiters, callback=callback)
+	s = solve(prob, OptimizationOptimisers.Sophia(η=0.001,ρ=0.00), # η=
+				maxiters=maxiters, callback=callback)
 	d = (p=s.u, loss=s.objective[1], T=T, maxiters=maxiters, rstate=rstate,
 			saveat=saveat, u0=u0, learn=learn, scale=scale)
 	if save
@@ -66,6 +66,8 @@ end
 function ode(u, p, t, v)
 	du1 = p[1]*v(t) - p[2]*u[1]
 	du2 = p[3]*(p[1]*v(t) - p[2]*u[2])	# different response, same equil
+#	du1 = v(t) - p[1]*u[1]
+#	du2 = p[2]*(v(t) - p[1]*u[2])	# different response, same equil
 	return [du1,du2]
 end
 
@@ -124,7 +126,7 @@ function callback(state, loss)
 	return false
 end
 
-function plot_data(T,d; rstate = nothing)
+function plot_data(T,d; rstate = nothing, subset=false)
 	rstate === nothing ?
 		println(copy(Random.default_rng())) :
 		copy!(Random.default_rng(), rstate)
@@ -138,23 +140,37 @@ function plot_data(T,d; rstate = nothing)
 	
 	wd = 2
 	
-	r = skip:(length(y)-1)
+	ly = length(y)
+	r = skip:(ly-1)
+	rs = firstindex(sol[1]):lastindex(sol[1])
+	rr = 1:(length(r)-1)
+	ryp = rs[begin]:(rs[end]-1)
+	if subset
+		steps=10
+		lmid = Int(round(ly/2))
+		r = (lmid-steps):(lmid+steps)
+		rr = r
+		rs = r .- skip
+		ryp = rs[begin]:(rs[end]-1)
+	end
 	yy = y[1+skip:end]
 	yy = yy * mean(sol[1]) / mean(yy)
 	pl = plot(layout=(3,1),size=(600,800),legend=:none)
-	plot!(r,sol[1],color=mma[1],w=wd,subplot=1)
-	plot!(r,yy,color=mma[2],w=wd,left_margin=0.7cm,subplot=1)
-	plot!(r,sol[1],color=mma[1],w=wd,subplot=2)
-	plot!(r,sol[2],color=mma[2],w=wd,subplot=2)
-	plot!(r,sol[3],color=mma[1],w=wd,bottom_margin=0.5cm,subplot=3)
+	plot!(r,sol[1][rs],color=mma[1],w=3.5,subplot=1)
+	plot!(r,yy[rs],color=mma[4],w=1.5,left_margin=0.7cm,subplot=1)
+	plot!(r,sol[1][rs],color=mma[1],w=wd,subplot=2)
+	plot!(r,sol[2][rs],color=mma[2],w=2,subplot=2)
+	#plot!(r[begin]:(r[end]-1),1000*(yp[ryp] .- 0.5),color=mma[1],w=wd,
+	plot!(r,1000*(yp[rs] .- 0.5),color=mma[1],w=wd,
+			bottom_margin=0.5cm,subplot=3)
 
-	annotate!(pl[3],(0.50,-0.18),"Temporal sample points",15)
-	annotate!(pl[1],(-0.08,0.5),text("Molecular abundance",12,rotation=90))
-	annotate!(pl[2],(-0.08,0.5),text("Molecular abundance",12,rotation=90))
-	annotate!(pl[3],(-0.08,0.52),text("Predicted direction",12,rotation=90))
+	annotate!(pl[3],(0.49,-0.18),"Temporal sample points",15)
+	annotate!(pl[1],(-0.10,0.5),text("Molecular abundance",12,rotation=90))
+	annotate!(pl[2],(-0.10,0.5),text("Molecular abundance",12,rotation=90))
+	annotate!(pl[3],(-0.10,0.52),text("Predicted direction",12,rotation=90))
 	chrs = 'a':'z'
 	for i in 1:3
-		annotate!(pl[i],(0.05,0.96),text(@sprintf("(%s)",chrs[i]),10))
+		annotate!(pl[i],(0.05,0.99),text(@sprintf("(%s)",chrs[i]),10))
 	end
 
 	display(pl)
