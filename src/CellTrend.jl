@@ -143,15 +143,15 @@ function plot_data(T,d; rstate = nothing, subset=false)
 	ly = length(y)
 	r = skip:(ly-1)
 	rs = firstindex(sol[1]):lastindex(sol[1])
-	rr = 1:(length(r)-1)
-	ryp = rs[begin]:(rs[end]-1)
+	rr = r[begin]:(r[end]-1)
+	ryp = 1:length(rr)
 	if subset
 		steps=10
 		lmid = Int(round(ly/2))
 		r = (lmid-steps):(lmid+steps)
 		rr = r
 		rs = r .- skip
-		ryp = rs[begin]:(rs[end]-1)
+		ryp = rs
 	end
 	yy = y[1+skip:end]
 	yy = yy * mean(sol[1]) / mean(yy)
@@ -160,8 +160,7 @@ function plot_data(T,d; rstate = nothing, subset=false)
 	plot!(r,yy[rs],color=mma[4],w=1.5,left_margin=0.7cm,subplot=1)
 	plot!(r,sol[1][rs],color=mma[1],w=wd,subplot=2)
 	plot!(r,sol[2][rs],color=mma[2],w=2,subplot=2)
-	#plot!(r[begin]:(r[end]-1),1000*(yp[ryp] .- 0.5),color=mma[1],w=wd,
-	plot!(r,1000*(yp[rs] .- 0.5),color=mma[1],w=wd,
+	plot!(rr,1000*(yp[ryp] .- 0.5),color=mma[1],w=wd,
 			bottom_margin=0.5cm,subplot=3)
 
 	annotate!(pl[3],(0.49,-0.18),"Temporal sample points",15)
