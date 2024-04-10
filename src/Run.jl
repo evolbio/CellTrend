@@ -42,6 +42,32 @@ rstate = Xoshiro(0x0ece70a30236ed33, 0x2e815a5584faccba, 0xcba5412ef2c6d28f, 0x6
 pl = plot_data(d.T, d; rstate=rstate, subset=true)
 savefig(pl,"/Users/steve/Desktop/cellTrend.pdf");
 
+# Run optimization with ρ=0.04 or something greater than zero to get parameters
+# that increase distance between x and y, with y slower than when accuracy only
+# optimized, but increased distance and robustness to perturbation of difference
+# means a decline in accuracy.
+
+# start by reading in results from ρ=0.00 solution, which emphasizes accuracy
+dir = "/Users/steve/sim/zzOtherLang/julia/projects/Circuits/" * 
+			"01_ML_Analogy/CellTrend/output/";
+d = deserialize(dir * "SavedRun_2D.jls");
+
+# optimize with ρ=0.04
+d=driver_opt(d.T; maxiters=d.maxiters, save=true, scale=d.scale, rstate=d.rstate, ρ=0.04);
+
+# Saved run for generating publication analysis and graphics
+
+dir = "/Users/steve/sim/zzOtherLang/julia/projects/Circuits/" * 
+			"01_ML_Analogy/CellTrend/output/";
+d = deserialize(dir * "SavedRun_2D_rho4.jls");
+
+# publication figure
+rstate = Xoshiro(0x0ece70a30236ed33, 0x2e815a5584faccba, 0xcba5412ef2c6d28f, 0x6a274bff0a3e0757, 0xaeeda13e3d25b7d6);
+pl = plot_data(d.T, d; rstate=rstate, subset=true)
+savefig(pl,"/Users/steve/Desktop/cellTrend.pdf");
+
+###################################
+
 # testing
 loss_val, yp, y_true, sol, y, p, y_diff, skip = 
 		loss(d.p, d.T, d.u0,; saveat=d.saveat, scale=d.scale);

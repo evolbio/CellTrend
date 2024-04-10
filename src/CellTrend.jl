@@ -8,6 +8,13 @@ include("/Users/steve/sim/zzOtherLang/julia/modules/MMAColors.jl")
 using .MMAColors
 export ema, rw, driver_opt, loss, plot_data
 
+# NOTE: The ode has an explicit solution that is easily written down. So
+# it might be more efficient to use that solution. However, the solution
+# requires numerically evaluating an integral, and so using the solution
+# instead of the ode trades numerical analysis of an integral instead of
+# an ode. The current code runs so quickly and is suited to purpose, so 
+# no need to change.
+
 sigmoidc(x; epsilon=1e-5) = clamp(1 / (1 + exp(-x)), epsilon, 1-epsilon)
 
 # globals for callback
@@ -15,7 +22,8 @@ acc_ma = 0
 iter = 0
 
 function driver_opt(T=30; maxiters=10, save=true, saveat=0.1, rstate = nothing,
-		dir="/Users/steve/Desktop/", learn=0.005, scale=1e1, restart="")
+		dir="/Users/steve/Desktop/", learn=0.005, scale=1e1, restart="",
+		ρ=0)
 	if rstate === nothing
 		rstate = copy(Random.default_rng())
 		println(rstate)
@@ -37,10 +45,10 @@ function driver_opt(T=30; maxiters=10, save=true, saveat=0.1, rstate = nothing,
 			Optimization.AutoForwardDiff())
 	prob = OptimizationProblem(optf,p)
 	# OptimizationOptimisers.Sophia(η=0.001)
-	s = solve(prob, OptimizationOptimisers.Sophia(η=0.001,ρ=0.00), # η=
+	s = solve(prob, OptimizationOptimisers.Sophia(η=0.001,ρ=ρ), # η=001, ρ=0.04
 				maxiters=maxiters, callback=callback)
 	d = (p=s.u, loss=s.objective[1], T=T, maxiters=maxiters, rstate=rstate,
-			saveat=saveat, u0=u0, learn=learn, scale=scale)
+			saveat=saveat, u0=u0, learn=learn, scale=scale, ρ=ρ)
 	if save
 		outfile = save_results(d; dir=dir)
 		println("Out file = ", outfile)
