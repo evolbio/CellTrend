@@ -66,6 +66,9 @@ rstate = Xoshiro(0x0ece70a30236ed33, 0x2e815a5584faccba, 0xcba5412ef2c6d28f, 0x6
 pl = plot_data(d.T, d; rstate=rstate, subset=true)
 savefig(pl,"/Users/steve/Desktop/cellTrend.pdf");
 
+# get accuracy statistics and plot
+plot_err_distn(d.T,d; n=50000, match_test=200000)
+
 ###################################
 
 # testing
